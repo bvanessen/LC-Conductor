@@ -14,18 +14,30 @@ import traceback
 from loguru import logger
 from lc_conductor.callback_logger import CallbackLogger
 from concurrent.futures import ProcessPoolExecutor
-from charge.experiments.experiment import Experiment
-from charge.clients.agent_factory import AgentFactory
-from charge.clients.autogen import AutoGenBackend
 
 from functools import partial
-from lc_conductor.tool_registration import (
-    ToolList,
-    list_server_urls,
-    list_server_tools,
-)
 from lc_conductor.backend_helper_function import RunSettings
 from lc_conductor.hpc_allocation import execute_hpc_allocation_from_env
+
+try:
+    from charge.experiments.experiment import Experiment
+    from charge.clients.agent_factory import AgentFactory
+    from charge.clients.autogen import AutoGenBackend
+except ImportError:
+    Experiment = Any  # type: ignore[assignment]
+    AgentFactory = None
+    AutoGenBackend = None
+
+try:
+    from lc_conductor.tool_registration import (
+        ToolList,
+        list_server_urls,
+        list_server_tools,
+    )
+except ImportError:
+    ToolList = None  # type: ignore[assignment]
+    list_server_urls = None
+    list_server_tools = None
 
 # Mapping from backend name to human-readable labels. Mirrored from the frontend
 BACKEND_LABELS = {
@@ -332,7 +344,7 @@ class ActionManager:
 
         def _result_payload(
             *,
-            executed_curl: str | None,
+            executed_request: str | None,
             result: dict,
             allocation_echo: dict,
         ) -> dict:
@@ -342,14 +354,14 @@ class ActionManager:
                 "allocation": allocation_echo,
                 "result": result,
             }
-            if executed_curl:
-                payload["executedCurl"] = executed_curl
+            if executed_request:
+                payload["executedRequest"] = executed_request
             return payload
 
         if not isinstance(request_id, str) or not request_id.strip():
             await self.websocket.send_json(
                 _result_payload(
-                    executed_curl=None,
+                    executed_request=None,
                     result={
                         "success": False,
                         "error": "Missing or invalid requestId",
@@ -363,7 +375,7 @@ class ActionManager:
         if not isinstance(allocation, dict):
             await self.websocket.send_json(
                 _result_payload(
-                    executed_curl=None,
+                    executed_request=None,
                     result={
                         "success": False,
                         "error": "Missing or invalid allocation object",
@@ -382,7 +394,7 @@ class ActionManager:
         if not isinstance(system, str) or not system.strip():
             await self.websocket.send_json(
                 _result_payload(
-                    executed_curl=None,
+                    executed_request=None,
                     result={
                         "success": False,
                         "error": "Missing or invalid system",
@@ -409,7 +421,7 @@ class ActionManager:
         except ValueError as e:
             await self.websocket.send_json(
                 _result_payload(
-                    executed_curl=None,
+                    executed_request=None,
                     result={
                         "success": False,
                         "error": str(e),
@@ -423,7 +435,7 @@ class ActionManager:
         if not isinstance(wall_time, str) or not wall_time.strip():
             await self.websocket.send_json(
                 _result_payload(
-                    executed_curl=None,
+                    executed_request=None,
                     result={
                         "success": False,
                         "error": "Missing or invalid time",
@@ -437,7 +449,7 @@ class ActionManager:
         if not isinstance(bank, str) or not bank.strip():
             await self.websocket.send_json(
                 _result_payload(
-                    executed_curl=None,
+                    executed_request=None,
                     result={
                         "success": False,
                         "error": "Missing or invalid bank",
@@ -455,7 +467,7 @@ class ActionManager:
             "bank": bank.strip(),
         }
 
-        executed_curl, result = await execute_hpc_allocation_from_env(
+        executed_request, result = await execute_hpc_allocation_from_env(
             system=allocation_echo["system"],
             nodes=allocation_echo["nodes"],
             time=allocation_echo["time"],
@@ -465,7 +477,7 @@ class ActionManager:
 
         await self.websocket.send_json(
             _result_payload(
-                executed_curl=executed_curl,
+                executed_request=executed_request,
                 result=result,
                 allocation_echo=allocation_echo,
             )

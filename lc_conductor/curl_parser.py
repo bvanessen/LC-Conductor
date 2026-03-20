@@ -6,6 +6,7 @@
 ###############################################################################
 
 import shlex
+import re
 from typing import Dict, Any
 from urllib.parse import urlparse
 
@@ -33,8 +34,10 @@ def parse_curl_command(curl_command: str) -> Dict[str, Any]:
         raise ValueError("Command too long (max 10,000 chars)")
 
     # Check for shell metacharacters
-    dangerous_chars = [';', '&', '|', '`', '$', '(', ')']
+    dangerous_chars = [";", "|", "`", "$", "(", ")"]
     if any(char in curl_command for char in dangerous_chars):
+        raise ValueError("Command contains unsafe shell characters")
+    if re.search(r"(^|\s)&|&($|\s)|&&", curl_command):
         raise ValueError("Command contains unsafe shell characters")
 
     # Parse with shlex (safe tokenization)
@@ -44,11 +47,11 @@ def parse_curl_command(curl_command: str) -> Dict[str, Any]:
         raise ValueError(f"Invalid command syntax: {e}")
 
     # First token must be 'curl'
-    if not parts or parts[0] != 'curl':
+    if not parts or parts[0] != "curl":
         raise ValueError("Command must start with 'curl'")
 
     # Extract components
-    method = 'GET'
+    method = "GET"
     url = None
     headers = {}
     data = None
@@ -57,22 +60,22 @@ def parse_curl_command(curl_command: str) -> Dict[str, Any]:
     while i < len(parts):
         arg = parts[i]
 
-        if arg in ['-X', '--request']:
+        if arg in ["-X", "--request"]:
             i += 1
             if i < len(parts):
                 method = parts[i].upper()
-        elif arg in ['-H', '--header']:
+        elif arg in ["-H", "--header"]:
             i += 1
             if i < len(parts):
                 header = parts[i]
-                if ':' in header:
-                    key, value = header.split(':', 1)
+                if ":" in header:
+                    key, value = header.split(":", 1)
                     headers[key.strip()] = value.strip()
-        elif arg in ['-d', '--data', '--data-raw']:
+        elif arg in ["-d", "--data", "--data-raw"]:
             i += 1
             if i < len(parts):
                 data = parts[i]
-        elif not arg.startswith('-'):
+        elif not arg.startswith("-"):
             # This is likely the URL
             url = arg
         # Skip other flags we don't support
@@ -84,13 +87,13 @@ def parse_curl_command(curl_command: str) -> Dict[str, Any]:
 
     # Validate URL
     parsed = urlparse(url)
-    if parsed.scheme not in ['http', 'https']:
+    if parsed.scheme not in ["http", "https"]:
         raise ValueError(f"Only http/https protocols allowed, got: {parsed.scheme}")
 
     return {
-        'method': method,
-        'url': url,
-        'headers': headers,
-        'data': data,
-        'timeout': 30.0
+        "method": method,
+        "url": url,
+        "headers": headers,
+        "data": data,
+        "timeout": 30.0,
     }

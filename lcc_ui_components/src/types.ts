@@ -24,7 +24,7 @@ export interface CurlExecutionResult {
   body?: string;
   error?: string;
   execution_time_ms?: number;
-  timestamp: string;  // When executed
+  timestamp: string; // When executed
 }
 
 export interface HpcAllocation {
@@ -55,7 +55,7 @@ export interface HpcAllocationResultMessage {
     time: string;
     bank: string;
   };
-  executedCurl?: string;
+  executedRequest?: string;
   result: CurlExecutionResult;
 }
 

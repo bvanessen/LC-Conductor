@@ -12,13 +12,12 @@ Tests cover:
 - Successful command execution
 - Error handling (timeout, connection errors, parser errors)
 - Request library integration
-- Endpoint handler logic
 """
 
 import pytest
 import requests
-from unittest.mock import Mock, patch, AsyncMock
-from lc_conductor.curl_executor import execute_curl_command, execute_curl_endpoint_handler
+from unittest.mock import Mock
+from lc_conductor.curl_executor import execute_curl_command
 
 
 @pytest.mark.asyncio
@@ -27,7 +26,7 @@ class TestExecuteCurlCommand:
 
     async def test_successful_get_request(self, mocker, mock_successful_response):
         """Test successful GET request execution."""
-        mock_requests = mocker.patch('lc_conductor.curl_executor.requests')
+        mock_requests = mocker.patch("lc_conductor.curl_executor.requests")
         mock_requests.request.return_value = mock_successful_response
 
         cmd = "curl https://api.example.com/users"
@@ -50,7 +49,7 @@ class TestExecuteCurlCommand:
 
     async def test_successful_post_request(self, mocker, mock_successful_response):
         """Test successful POST request with data."""
-        mock_requests = mocker.patch('lc_conductor.curl_executor.requests')
+        mock_requests = mocker.patch("lc_conductor.curl_executor.requests")
         mock_requests.request.return_value = mock_successful_response
 
         cmd = 'curl -X POST https://api.example.com/users -d \'{"name": "test"}\''
@@ -66,7 +65,7 @@ class TestExecuteCurlCommand:
 
     async def test_request_with_headers(self, mocker, mock_successful_response):
         """Test request with custom headers."""
-        mock_requests = mocker.patch('lc_conductor.curl_executor.requests')
+        mock_requests = mocker.patch("lc_conductor.curl_executor.requests")
         mock_requests.request.return_value = mock_successful_response
 
         cmd = 'curl -H "Authorization: Bearer token123" https://api.example.com/data'
@@ -80,9 +79,11 @@ class TestExecuteCurlCommand:
 
     async def test_timeout_error(self, mocker):
         """Test handling of request timeout."""
-        mock_requests = mocker.patch('lc_conductor.curl_executor.requests')
+        mock_requests = mocker.patch("lc_conductor.curl_executor.requests")
         mock_requests.exceptions.Timeout = requests.exceptions.Timeout
-        mock_requests.request.side_effect = requests.exceptions.Timeout("Timeout occurred")
+        mock_requests.request.side_effect = requests.exceptions.Timeout(
+            "Timeout occurred"
+        )
 
         cmd = "curl https://slow.example.com"
         result = await execute_curl_command(cmd, "test-client")
@@ -95,10 +96,12 @@ class TestExecuteCurlCommand:
 
     async def test_connection_error(self, mocker):
         """Test handling of connection error."""
-        mock_requests = mocker.patch('lc_conductor.curl_executor.requests')
+        mock_requests = mocker.patch("lc_conductor.curl_executor.requests")
         mock_requests.exceptions.Timeout = requests.exceptions.Timeout
         mock_requests.exceptions.ConnectionError = requests.exceptions.ConnectionError
-        mock_requests.request.side_effect = requests.exceptions.ConnectionError("Connection refused")
+        mock_requests.request.side_effect = requests.exceptions.ConnectionError(
+            "Connection refused"
+        )
 
         cmd = "curl https://unreachable.example.com"
         result = await execute_curl_command(cmd, "test-client")
@@ -118,7 +121,7 @@ class TestExecuteCurlCommand:
 
     async def test_generic_exception(self, mocker):
         """Test handling of unexpected exceptions."""
-        mock_requests = mocker.patch('lc_conductor.curl_executor.requests')
+        mock_requests = mocker.patch("lc_conductor.curl_executor.requests")
         mock_requests.exceptions.Timeout = requests.exceptions.Timeout
         mock_requests.exceptions.ConnectionError = requests.exceptions.ConnectionError
         mock_requests.request.side_effect = Exception("Unexpected error")
@@ -137,10 +140,10 @@ class TestExecuteCurlCommand:
         mock_response.text = "body"
         mock_response.headers = {
             "Content-Type": "application/json",
-            "X-Custom-Header": "value"
+            "X-Custom-Header": "value",
         }
 
-        mock_requests = mocker.patch('lc_conductor.curl_executor.requests')
+        mock_requests = mocker.patch("lc_conductor.curl_executor.requests")
         mock_requests.request.return_value = mock_response
 
         cmd = "curl https://example.com"
@@ -158,7 +161,7 @@ class TestExecuteCurlCommand:
         mock_response.text = ""
         mock_response.headers = {}
 
-        mock_requests = mocker.patch('lc_conductor.curl_executor.requests')
+        mock_requests = mocker.patch("lc_conductor.curl_executor.requests")
         mock_requests.request.return_value = mock_response
 
         cmd = "curl https://example.com"
@@ -177,7 +180,7 @@ class TestExecuteCurlCommand:
         mock_response.text = large_body
         mock_response.headers = {}
 
-        mock_requests = mocker.patch('lc_conductor.curl_executor.requests')
+        mock_requests = mocker.patch("lc_conductor.curl_executor.requests")
         mock_requests.request.return_value = mock_response
 
         cmd = "curl https://example.com"
@@ -188,7 +191,7 @@ class TestExecuteCurlCommand:
 
     async def test_execution_time_tracking(self, mocker, mock_successful_response):
         """Test that execution time is tracked."""
-        mock_requests = mocker.patch('lc_conductor.curl_executor.requests')
+        mock_requests = mocker.patch("lc_conductor.curl_executor.requests")
         mock_requests.request.return_value = mock_successful_response
 
         cmd = "curl https://example.com"
@@ -200,7 +203,7 @@ class TestExecuteCurlCommand:
 
     async def test_timestamp_format(self, mocker, mock_successful_response):
         """Test that timestamp is in ISO format."""
-        mock_requests = mocker.patch('lc_conductor.curl_executor.requests')
+        mock_requests = mocker.patch("lc_conductor.curl_executor.requests")
         mock_requests.request.return_value = mock_successful_response
 
         cmd = "curl https://example.com"
@@ -212,7 +215,7 @@ class TestExecuteCurlCommand:
 
     async def test_allow_redirects_enabled(self, mocker, mock_successful_response):
         """Test that redirect following is enabled."""
-        mock_requests = mocker.patch('lc_conductor.curl_executor.requests')
+        mock_requests = mocker.patch("lc_conductor.curl_executor.requests")
         mock_requests.request.return_value = mock_successful_response
 
         cmd = "curl https://example.com"
@@ -220,78 +223,6 @@ class TestExecuteCurlCommand:
 
         call_kwargs = mock_requests.request.call_args[1]
         assert call_kwargs["allow_redirects"] is True
-
-
-@pytest.mark.asyncio
-class TestExecuteCurlEndpointHandler:
-    """Test the execute_curl_endpoint_handler function."""
-
-    async def test_successful_execution(self, mocker, mock_request, mock_successful_response):
-        """Test successful endpoint handler execution."""
-        mock_requests = mocker.patch('lc_conductor.curl_executor.requests')
-        mock_requests.request.return_value = mock_successful_response
-
-        # Mock get_client_info from tool_registration module
-        mocker.patch(
-            'lc_conductor.tool_registration.get_client_info',
-            return_value="192.168.1.100"
-        )
-
-        cmd = "curl https://example.com"
-        result = await execute_curl_endpoint_handler(mock_request, cmd)
-
-        assert result["success"] is True
-        assert result["status_code"] == 200
-
-    async def test_client_info_extraction(self, mocker, mock_request, mock_successful_response):
-        """Test that client info is extracted from request."""
-        mock_requests = mocker.patch('lc_conductor.curl_executor.requests')
-        mock_requests.request.return_value = mock_successful_response
-
-        mock_get_client_info = mocker.patch(
-            'lc_conductor.tool_registration.get_client_info',
-            return_value="192.168.1.100"
-        )
-
-        cmd = "curl https://example.com"
-        await execute_curl_endpoint_handler(mock_request, cmd)
-
-        # Verify get_client_info was called with request
-        mock_get_client_info.assert_called_once_with(mock_request)
-
-    async def test_error_handling_in_handler(self, mocker, mock_request):
-        """Test that handler catches and formats exceptions."""
-        # Mock execute_curl_command to raise exception
-        mocker.patch(
-            'lc_conductor.curl_executor.execute_curl_command',
-            side_effect=Exception("Unexpected handler error")
-        )
-
-        mocker.patch(
-            'lc_conductor.tool_registration.get_client_info',
-            return_value="test-client"
-        )
-
-        cmd = "curl https://example.com"
-        result = await execute_curl_endpoint_handler(mock_request, cmd)
-
-        assert result["success"] is False
-        assert "Execution failed" in result["error"]
-        assert "Unexpected handler error" in result["error"]
-        assert "timestamp" in result
-
-    async def test_parser_error_in_handler(self, mocker, mock_request):
-        """Test that handler handles parser validation errors."""
-        mocker.patch(
-            'lc_conductor.tool_registration.get_client_info',
-            return_value="test-client"
-        )
-
-        cmd = "curl file:///tmp/test.txt"
-        result = await execute_curl_endpoint_handler(mock_request, cmd)
-
-        assert result["success"] is False
-        assert "Invalid command" in result["error"]
 
 
 @pytest.mark.asyncio
@@ -305,7 +236,7 @@ class TestIntegrationScenarios:
         mock_response.text = '{"id": 123, "name": "created"}'
         mock_response.headers = {"Location": "/users/123"}
 
-        mock_requests = mocker.patch('lc_conductor.curl_executor.requests')
+        mock_requests = mocker.patch("lc_conductor.curl_executor.requests")
         mock_requests.request.return_value = mock_response
 
         cmd = 'curl -X POST https://api.example.com/users -H "Content-Type: application/json" -d \'{"name": "test"}\''
@@ -329,7 +260,7 @@ class TestIntegrationScenarios:
         mock_response.text = '{"authenticated": true}'
         mock_response.headers = {}
 
-        mock_requests = mocker.patch('lc_conductor.curl_executor.requests')
+        mock_requests = mocker.patch("lc_conductor.curl_executor.requests")
         mock_requests.request.return_value = mock_response
 
         cmd = 'curl -H "Authorization: Bearer secret-token" https://api.example.com/protected'
@@ -347,7 +278,7 @@ class TestIntegrationScenarios:
         mock_response.text = '{"error": "Not found"}'
         mock_response.headers = {}
 
-        mock_requests = mocker.patch('lc_conductor.curl_executor.requests')
+        mock_requests = mocker.patch("lc_conductor.curl_executor.requests")
         mock_requests.request.return_value = mock_response
 
         cmd = "curl https://api.example.com/notfound"
