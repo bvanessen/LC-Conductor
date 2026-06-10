@@ -110,6 +110,10 @@ export interface SidebarMessage {
   message: string;
   smiles: string | null;
   source: string;
+  agentKey?: string;
+  eventKind?: AgentChatEventKind;
+  title?: string;
+  instructions?: AgentChatContextItem[] | string;
   // Server -> browser preview refs only. The browser resolves data URLs from
   // the Agent experiment context so base64 image bytes are not duplicated here.
   images?: Record<string, AgentImageRef>;
@@ -152,6 +156,104 @@ export interface AgentImageRef {
   name: string;
   mimeType: string;
   sizeBytes: number;
+}
+
+// ============================================================================
+// Agent Chat Types
+// ============================================================================
+
+export interface AgentChatImageRef extends AgentImageRef {
+  dataUrl?: string;
+}
+
+export interface AgentChatReasoningItem {
+  type: string;
+  text: string;
+  debug?: unknown;
+}
+
+export interface AgentChatToolEvent {
+  type: string;
+  name?: string;
+  text: string;
+  raw?: unknown;
+}
+
+export interface AgentChatContextItem {
+  title: string;
+  text: string;
+}
+
+export type AgentChatEventKind = 'reasoning' | 'tool_call' | 'tool_result' | 'status';
+
+export interface AgentChatContextUsage {
+  usedTokens: number;
+  maxTokens?: number;
+  source: 'provider';
+  model?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  reasoningTokens?: number;
+  totalTokens?: number;
+}
+
+export interface AgentChatMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system' | 'tool';
+  label?: string;
+  text: string;
+  pending?: boolean;
+  eventKind?: AgentChatEventKind;
+  context?: AgentChatContextItem[];
+  images?: AgentChatImageRef[];
+  reasoning?: AgentChatReasoningItem[];
+  toolEvents?: AgentChatToolEvent[];
+  raw?: unknown;
+}
+
+export interface AgentChatHistory {
+  agentKey: string;
+  title: string;
+  subtitle?: string;
+  metadata?: Record<string, unknown>;
+  modelInfo?: Record<string, unknown>;
+  contextUsage?: AgentChatContextUsage;
+  promptContext?: AgentChatContextItem[];
+  messages: AgentChatMessage[];
+  lastMessage?: string;
+  rawSession?: unknown;
+}
+
+export type AgentHistorySummary = AgentChatHistory;
+
+export interface SerializedAgentRuntimeConfig {
+  backend?: string;
+  model?: string;
+}
+
+export interface SerializedAgentTask {
+  system_prompt?: string;
+  user_prompt?: string;
+}
+
+export interface SerializedAgentInstructionSnapshot {
+  messageCount: number;
+  instructions: string;
+}
+
+export interface SerializedAgentPendingUserMessage {
+  text: string;
+  afterMessageCount?: number;
+  images?: AgentChatImageRef[];
+}
+
+export interface SerializedAgent {
+  runtimeConfig?: SerializedAgentRuntimeConfig;
+  memory?: string;
+  modelInfo?: Record<string, unknown>;
+  task?: SerializedAgentTask | null;
+  instructionHistory?: SerializedAgentInstructionSnapshot[];
+  pendingUserMessage?: SerializedAgentPendingUserMessage | null;
 }
 
 // ============================================================================

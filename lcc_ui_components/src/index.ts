@@ -15,9 +15,12 @@ export { SettingsButton } from './SettingsButton.js';
 export { ReasoningSidebar, useSidebarState } from './ReasoningSidebar.js';
 export { MarkdownText } from './MarkdownText.js';
 export { AttachmentUpload } from './AttachmentUpload.js';
+export { AgentChatPanel, AgentChatModal, AgentHistoryList } from './AgentChat.js';
+export { deserializeAgentChatHistory } from './agentSerialization.js';
 
 // Constants
 export { BACKEND_OPTIONS } from './constants.js';
+export { MODEL_CONTEXT_WINDOWS, contextWindowForModel } from './modelContext.js';
 export {
   callLocalMcpTool,
   checkLocalMcpServerConnectivity,
@@ -48,6 +51,18 @@ export type {
   VisibleSources,
   AgentAttachment,
   AgentImageRef,
+  AgentChatImageRef,
+  AgentChatReasoningItem,
+  AgentChatToolEvent,
+  AgentChatContextItem,
+  AgentChatContextUsage,
+  AgentChatMessage,
+  AgentChatHistory,
+  AgentHistorySummary,
+  SerializedAgentRuntimeConfig,
+  SerializedAgentTask,
+  SerializedAgentInstructionSnapshot,
+  SerializedAgent,
 
   // Markdown types
   MarkdownTextProps,
