@@ -51,6 +51,10 @@ from lc_conductor.resolve_default_parameters import (
     resolve_model,
     find_service_api_key,
     resolve_base_url,
+    resolve_allowed_backends,
+    allowed_backend_values,
+    is_backend_allowed,
+    is_custom_url_allowed,
 )
 
 __all__ = [
@@ -94,4 +98,8 @@ __all__ = [
     "resolve_model",
     "find_serivce_api_key",
     "resolve_base_url",
+    "resolve_allowed_backends",
+    "allowed_backend_values",
+    "is_backend_allowed",
+    "is_custom_url_allowed",
 ]

@@ -14,8 +14,9 @@ This module provides priority-based resolution of orchestrator configuration:
 3. Hardcoded defaults (lowest priority)
 """
 
+import json
 import os
-from typing import Optional, Dict, Any
+from typing import List, Optional, Dict, Any
 from loguru import logger
 
 # Import ChARGe helper functions
@@ -251,3 +252,81 @@ def resolve_orchestrator_config(
     )
 
     return config
+
+
+# ---------------------------------------------------------------------------
+# Backend allow-list resolution
+# ---------------------------------------------------------------------------
+#
+# The FLASK_ALLOWED_BACKENDS environment variable, when set, restricts which
+# orchestrator backends may be selected and whether each one permits a custom
+# endpoint URL. It is a JSON array of objects, e.g.:
+#
+#     FLASK_ALLOWED_BACKENDS='[
+#       {"backend": "livai",  "allowCustomUrl": false},
+#       {"backend": "alcf",   "allowCustomUrl": false},
+#       {"backend": "custom", "allowCustomUrl": true}
+#     ]'
+#
+# When unset or invalid, no restriction is applied (all backends allowed, custom
+# URLs permitted). The parsed value is both injected into window.APP_CONFIG so
+# the UI can filter the backend picker, and enforced server-side so a crafted
+# WebSocket message cannot bypass the UI.
+
+ALLOWED_BACKENDS_ENV_VAR = "FLASK_ALLOWED_BACKENDS"
+
+
+def resolve_allowed_backends() -> List[dict]:
+    """Parse ``FLASK_ALLOWED_BACKENDS`` into a list of allow-list entries.
+
+    Returns an empty list (meaning "no restriction") when the variable is
+    unset, unparseable, or not a JSON array of objects. Malformed individual
+    entries (missing a ``backend`` value) are dropped with a warning.
+    """
+    raw = os.getenv(ALLOWED_BACKENDS_ENV_VAR, "")
+    if not raw:
+        return []
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        logger.warning(f"Invalid {ALLOWED_BACKENDS_ENV_VAR} JSON, ignoring: {exc}")
+        return []
+    if not isinstance(parsed, list):
+        logger.warning(f"{ALLOWED_BACKENDS_ENV_VAR} is not a JSON array, ignoring")
+        return []
+    entries: List[dict] = []
+    for item in parsed:
+        if isinstance(item, dict) and item.get("backend"):
+            entries.append(item)
+        else:
+            logger.warning(
+                f"Ignoring malformed {ALLOWED_BACKENDS_ENV_VAR} entry: {item!r}"
+            )
+    return entries
+
+
+def allowed_backend_values(entries: Optional[List[dict]] = None) -> List[str]:
+    """Return the list of allowed backend values (empty means no restriction)."""
+    if entries is None:
+        entries = resolve_allowed_backends()
+    return [entry["backend"] for entry in entries]
+
+
+def is_backend_allowed(backend: str, entries: Optional[List[dict]] = None) -> bool:
+    """Whether ``backend`` may be used. No restriction => always allowed."""
+    values = allowed_backend_values(entries)
+    return not values or backend in values
+
+
+def is_custom_url_allowed(backend: str, entries: Optional[List[dict]] = None) -> bool:
+    """Whether ``backend`` permits a user-supplied custom URL.
+
+    Defaults to True when there is no allow-list or the backend has no entry, so
+    behavior is unchanged unless a deployment explicitly opts a backend out.
+    """
+    if entries is None:
+        entries = resolve_allowed_backends()
+    for entry in entries:
+        if entry.get("backend") == backend:
+            return bool(entry.get("allowCustomUrl", True))
+    return True

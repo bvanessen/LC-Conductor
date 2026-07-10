@@ -49,6 +49,7 @@ export type {
   OrchestratorSettings,
   BackendOption,
   BannerColor,
+  AllowedBackend,
   DataClassificationRule,
   DataClassificationConfig,
   SettingsButtonProps,
