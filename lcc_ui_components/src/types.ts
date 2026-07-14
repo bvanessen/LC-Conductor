@@ -55,6 +55,37 @@ export interface BackendOption {
   models: string[];
 }
 
+// Fixed palette of banner colors selectable per classification.
+export type BannerColor = 'green' | 'yellow' | 'red' | 'orange';
+
+export interface DataClassificationRule {
+  // Backend value this rule applies to (matches OrchestratorSettings.backend).
+  backend: string;
+  // Optional substring match against the resolved endpoint URL. When present,
+  // the rule only matches if the URL contains this substring.
+  urlContains?: string;
+  // The "XXX" text inserted into "This web app is approved for all levels of XXX".
+  level: string;
+  // Optional banner color for this classification. When omitted, the banner
+  // uses its default styling.
+  color?: BannerColor;
+}
+
+export interface DataClassificationConfig {
+  // Rules evaluated top-to-bottom; first match wins.
+  rules: DataClassificationRule[];
+  // Level text used when no rule matches the current backend + URL.
+  fallbackLevel: string;
+  // Optional user-configurable message rendered after the fixed lead-in
+  // ("Using this orchestrator endpoint [<label>] ") and before the resolved
+  // level. When omitted, the banner falls back to its built-in default
+  // ("This web app can process data that is approved for ").
+  prefix?: string;
+  // Optional banner color used when no rule matches (the fallback level). When
+  // omitted, the banner uses its default color (green).
+  fallbackColor?: BannerColor;
+}
+
 export interface DiscoverModelsRequest {
   backend: string;
   base_url?: string;

@@ -17,6 +17,11 @@ export { MarkdownText } from './MarkdownText.js';
 export { AttachmentUpload } from './AttachmentUpload.js';
 export { AgentChatPanel, AgentChatModal, AgentHistoryList } from './AgentChat.js';
 export { deserializeAgentChatHistory } from './agentSerialization.js';
+export {
+  DataClassificationBanner,
+  resolveClassificationLevel,
+  resolveClassificationPrefix,
+} from './DataClassificationBanner.js';
 
 // Constants
 export { BACKEND_OPTIONS } from './constants.js';
@@ -43,6 +48,9 @@ export type {
   ReasoningEffort,
   OrchestratorSettings,
   BackendOption,
+  BannerColor,
+  DataClassificationRule,
+  DataClassificationConfig,
   SettingsButtonProps,
   LocalMcpProxyRequest,
   LocalMcpProxyResponse,
