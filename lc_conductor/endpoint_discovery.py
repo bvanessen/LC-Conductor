@@ -266,6 +266,7 @@ class DiscoverModelsResponse(BaseModel):
     backend: str
     models: List[str]
     source: str  # "discovered" or "default"
+    base_url: Optional[str] = None  # server-resolved endpoint URL for the backend
 
 
 def validate_initial_model(
@@ -368,6 +369,14 @@ async def discover_models_endpoint(
             "source": "discovered"
         }
     """
+    # Resolve the effective endpoint URL the server will use for this backend:
+    # an explicit request override, otherwise the backend's env-configured URL.
+    # This is returned so the UI can display it when switching backends whose
+    # hardcoded default URL is empty (e.g. livai, alcf).
+    from charge.clients.openai_base import get_base_url_for_backend
+
+    resolved_base_url = request.base_url or get_base_url_for_backend(request.backend)
+
     # Try to discover models
     discovered_models = discover_models_for_backend(
         backend=request.backend,
@@ -384,6 +393,7 @@ async def discover_models_endpoint(
             backend=request.backend,
             models=discovered_models,
             source="discovered",
+            base_url=resolved_base_url,
         )
 
     # Fall back to defaults
@@ -393,4 +403,5 @@ async def discover_models_endpoint(
         backend=request.backend,
         models=default_models,
         source="default",
+        base_url=resolved_base_url,
     )

@@ -96,11 +96,22 @@ export interface DiscoverModelsResponse {
   backend: string;
   models: string[];
   source: 'discovered' | 'default';
+  base_url?: string;
 }
 
 export interface MoleculeNameOption {
   value: string;
   label: string;
+}
+
+// One entry in the deployment's allow-list of orchestrator backends.
+export interface AllowedBackend {
+  // Backend value (matches OrchestratorSettings.backend / BackendOption.value).
+  backend: string;
+  // Whether the user may override this backend's endpoint with a custom URL.
+  // When false, only the preconfigured default URL is used. Defaults to true
+  // when omitted.
+  allowCustomUrl?: boolean;
 }
 
 export interface SettingsButtonProps {
@@ -112,6 +123,9 @@ export interface SettingsButtonProps {
   username?: string;
   className?: string;
   httpServerUrl: string;
+  // Optional deployment allow-list. When non-empty, only these backends are
+  // selectable and each entry controls whether a custom URL is permitted.
+  allowedBackends?: AllowedBackend[];
 }
 
 export interface LocalMcpProxyRequest {

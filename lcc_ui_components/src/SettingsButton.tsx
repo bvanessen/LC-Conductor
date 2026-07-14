@@ -76,6 +76,7 @@ export const SettingsButton: React.FC<SettingsButtonProps> = ({
   username,
   httpServerUrl,
   className = '',
+  allowedBackends,
 }) => {
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<'orchestrator' | 'tools'>('orchestrator');
@@ -94,7 +95,15 @@ export const SettingsButton: React.FC<SettingsButtonProps> = ({
 
   // Cache for discovered models per backend (includes API key to detect changes)
   const [modelCache, setModelCache] = React.useState<
-    Record<string, { models: string[]; source: 'discovered' | 'default'; apiKey?: string }>
+    Record<
+      string,
+      {
+        models: string[];
+        source: 'discovered' | 'default';
+        apiKey?: string;
+        baseUrl?: string;
+      }
+    >
   >({});
 
   // Track if discovery is in progress
@@ -114,6 +123,33 @@ export const SettingsButton: React.FC<SettingsButtonProps> = ({
 
   const [settings, setSettings] = React.useState<OrchestratorSettings>(defaultSettings);
   const [tempSettings, setTempSettings] = React.useState<OrchestratorSettings>(settings);
+
+  // Deployment backend allow-list. When non-empty, only these backends are
+  // offered and each entry controls whether a custom URL is permitted.
+  const availableBackendOptions = React.useMemo(() => {
+    if (!allowedBackends || allowedBackends.length === 0) {
+      return BACKEND_OPTIONS;
+    }
+    const allowedValues = allowedBackends.map((b) => b.backend);
+    return BACKEND_OPTIONS.filter((opt) => allowedValues.includes(opt.value));
+  }, [allowedBackends]);
+
+  // Whether the given backend permits a user-supplied custom URL. Defaults to
+  // true when there is no allow-list or the backend has no explicit entry.
+  const isCustomUrlAllowed = React.useCallback(
+    (backend: string): boolean => {
+      if (!allowedBackends || allowedBackends.length === 0) {
+        return true;
+      }
+      const entry = allowedBackends.find((b) => b.backend === backend);
+      return entry ? entry.allowCustomUrl !== false : true;
+    },
+    [allowedBackends]
+  );
+
+  // Whether the custom URL controls are editable for the currently selected
+  // backend. When false, the field is still shown but rendered read-only.
+  const customUrlEditable = isCustomUrlAllowed(tempSettings.backend);
 
   // Tool Servers state
   const [addingServerScope, setAddingServerScope] = React.useState<ToolServerScope | null>(null);
@@ -176,11 +212,16 @@ export const SettingsButton: React.FC<SettingsButtonProps> = ({
   );
 
   const discoverModelsForBackend = React.useCallback(
-    async (backend: string, baseUrl?: string, apiKey?: string, forceRefresh: boolean = false) => {
+    async (
+      backend: string,
+      baseUrl?: string,
+      apiKey?: string,
+      forceRefresh: boolean = false
+    ): Promise<{ models: string[]; baseUrl?: string }> => {
       // Check cache first - but invalidate if API key changed
       const cached = modelCache[backend];
       if (cached && !forceRefresh && cached.apiKey === apiKey) {
-        return cached.models;
+        return { models: cached.models, baseUrl: cached.baseUrl };
       }
 
       setIsDiscovering(true);
@@ -192,17 +233,18 @@ export const SettingsButton: React.FC<SettingsButtonProps> = ({
           api_key: apiKey,
         });
 
-        // Cache the results with the API key
+        // Cache the results with the API key and the server-resolved base URL
         setModelCache((prev) => ({
           ...prev,
           [backend]: {
             models: result.models,
             source: result.source,
             apiKey: apiKey,
+            baseUrl: result.base_url,
           },
         }));
 
-        return result.models;
+        return { models: result.models, baseUrl: result.base_url };
       } catch (error) {
         console.error(`Failed to discover models for ${backend}:`, error);
 
@@ -219,7 +261,7 @@ export const SettingsButton: React.FC<SettingsButtonProps> = ({
           },
         }));
 
-        return fallbackModels;
+        return { models: fallbackModels, baseUrl: undefined };
       } finally {
         setIsDiscovering(false);
       }
@@ -406,7 +448,7 @@ export const SettingsButton: React.FC<SettingsButtonProps> = ({
 
       // Discover models and validate
       const discoverAndValidate = async () => {
-        const discoveredModels = await discoverModelsForBackend(
+        const { models: discoveredModels } = await discoverModelsForBackend(
           normalizedSettings.backend,
           normalizedSettings.useCustomUrl ? normalizedSettings.customUrl : undefined,
           normalizedSettings.apiKey || undefined
@@ -439,6 +481,21 @@ export const SettingsButton: React.FC<SettingsButtonProps> = ({
       discoverAndValidate();
     }
   }, [initialSettings, discoverModelsForBackend]);
+
+  // Enforce the allow-list on the current selection: coerce a disallowed
+  // backend to the first allowed one. The custom URL remains visible even when
+  // editing is disallowed (the field is rendered read-only), and the server
+  // enforces the URL for locked backends regardless of what the client sends.
+  React.useEffect(() => {
+    if (!allowedBackends || allowedBackends.length === 0) {
+      return;
+    }
+    const allowedValues = availableBackendOptions.map((opt) => opt.value);
+    if (allowedValues.length > 0 && !allowedValues.includes(tempSettings.backend)) {
+      handleBackendChange(allowedValues[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allowedBackends, availableBackendOptions, tempSettings.backend]);
 
   // Check connectivity for all tool servers when modal opens
   React.useEffect(() => {
@@ -657,12 +714,19 @@ export const SettingsButton: React.FC<SettingsButtonProps> = ({
       ? cached?.customUrl || newBackendOption?.defaultUrl || ''
       : newBackendOption?.defaultUrl || '';
 
-    // Discover models for new backend
-    const discoveredModels = await discoverModelsForBackend(
+    // Discover models for new backend. The server also returns the endpoint URL
+    // it resolved (from backend-specific env vars), which we use to populate the
+    // field for backends whose hardcoded default URL is empty (e.g. livai, alcf).
+    const { models: discoveredModels, baseUrl: resolvedBaseUrl } = await discoverModelsForBackend(
       newBackend,
       urlToUse,
       tempSettings.apiKey
     );
+
+    // Prefer a cached user URL, then the hardcoded default, then the
+    // server-resolved URL, so the field is never blanked on a backend switch.
+    const finalCustomUrl =
+      cached?.customUrl || newBackendOption?.defaultUrl || resolvedBaseUrl || '';
 
     // Use first discovered model or cached model
     const modelToUse =
@@ -675,7 +739,7 @@ export const SettingsButton: React.FC<SettingsButtonProps> = ({
     setTempSettings({
       ...tempSettings,
       backend: newBackend,
-      customUrl: urlToUse,
+      customUrl: finalCustomUrl,
       model: modelToUse,
       reasoningEffort: cached?.reasoningEffort || 'medium',
       useCustomModel: useCustomModelToUse,
@@ -819,7 +883,7 @@ export const SettingsButton: React.FC<SettingsButtonProps> = ({
 
     try {
       // Discover models with the API key (empty/undefined will use backend environment fallback)
-      const discoveredModels = await discoverModelsForBackend(
+      const { models: discoveredModels } = await discoverModelsForBackend(
         currentBackend,
         currentBaseUrl,
         apiKeyInput || undefined, // Convert empty string to undefined for backend fallback
@@ -1443,7 +1507,7 @@ export const SettingsButton: React.FC<SettingsButtonProps> = ({
                       onChange={(e) => handleBackendChange(e.target.value)}
                       className="form-select"
                     >
-                      {BACKEND_OPTIONS.map((option) => (
+                      {availableBackendOptions.map((option) => (
                         <option key={option.value} value={option.value}>
                           {option.label}
                         </option>
@@ -1451,24 +1515,32 @@ export const SettingsButton: React.FC<SettingsButtonProps> = ({
                     </select>
                   </div>
 
-                  {/* Use Custom URL Checkbox */}
+                  {/* Use Custom URL Checkbox (disabled when locked for this backend) */}
                   <div>
-                    <label className="form-label cursor-pointer">
+                    <label
+                      className={`form-label ${
+                        customUrlEditable ? 'cursor-pointer' : 'cursor-not-allowed'
+                      }`}
+                    >
                       <input
                         type="checkbox"
                         checked={tempSettings.useCustomUrl}
                         onChange={(e) => handleCustomUrlToggle(e.target.checked)}
+                        disabled={!customUrlEditable}
                         className="form-checkbox"
                       />
                       <span>Use custom URL for this backend</span>
                     </label>
                     <p className="helper-text" style={{ marginLeft: '1.5rem' }}>
-                      Override the default endpoint with a custom server URL
+                      {customUrlEditable
+                        ? 'Override the default endpoint with a custom server URL'
+                        : 'This deployment locks this backend to its preconfigured endpoint'}
                     </p>
                   </div>
 
-                  {/* Custom URL Field (conditional) */}
-                  {tempSettings.useCustomUrl && (
+                  {/* Custom URL Field: shown when custom URL is on, or always (read-only)
+                      when locked so the endpoint in use stays visible. */}
+                  {(tempSettings.useCustomUrl || !customUrlEditable) && (
                     <div className="form-group animate-fadeIn">
                       <label className="form-label">
                         Custom URL
@@ -1488,6 +1560,8 @@ export const SettingsButton: React.FC<SettingsButtonProps> = ({
                         onChange={(e) => handleCustomUrlChange(e.target.value)}
                         placeholder={currentBackendOption?.defaultUrl || 'http://localhost:8000'}
                         className="form-input"
+                        readOnly={!customUrlEditable}
+                        disabled={!customUrlEditable}
                       />
                       <p className="helper-text">
                         Default: {currentBackendOption?.defaultUrl || 'Not set'}
